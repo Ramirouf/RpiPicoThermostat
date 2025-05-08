@@ -1,78 +1,93 @@
-# Raspberry Pi Pico W Thermostat with MQTT Control
+# Raspberry Pi Pico W Thermostat (MQTT)
 
-This project implements a smart thermostat using a Raspberry Pi Pico W, a DHT11 temperature and humidity sensor, and a relay. It offers both manual and automatic control modes, configurable via MQTT over a secure connection (MQTTs). The system is programmed in MicroPython, leveraging the `asyncio` and `mqtt_as` libraries for efficient and event-driven communication.
+**Author:** Ramiro Uffelmann
+
+## Project Overview
+
+A network‑connected thermostat built on a Raspberry Pi Pico 2 W using MicroPython and `mqtt_as`. It reads temperature and humidity from a DHT11 sensor, controls a relay in automatic or manual mode, and communicates securely over MQTT‑TLS. All configuration parameters persist across power cycles.
 
 ## Features
 
-* **Dual Control Modes:**
-    * **Automatic Mode:** The relay is activated when the measured temperature exceeds the configured setpoint.
-    * **Manual Mode:** The relay state is directly controlled via MQTT commands.
-* **MQTT Communication (MQTTs):** Securely communicates with an MQTT broker.
-* **Periodic Data Publishing:** Publishes temperature, humidity, setpoint, period, mode, and relay status as a JSON payload to the topic `DEVICE_ID` (replace `DEVICE_ID` with your unique device identifier).
-* **MQTT Subscription:** Subscribes to the following topics under `DEVICE_ID`:
-    * `/setpoint`: To receive new temperature setpoint values.
-    * `/periodo`: To receive updates to the data publishing period.
-    * `/destello`: To trigger a visual indication (e.g., blinking an LED).
-    * `/modo`: To switch between "auto" and "manual" control modes.
-    * `/rele`: To directly control the relay state in manual mode ("on" or "off").
-* **Non-Volatile Storage:** Utilizes the `btree` module to persistently store the setpoint, period, mode, and relay state across reboots.
-* **On-Demand Blink:** Upon receiving a "destello" command via MQTT, the Pico W will briefly blink an indicator (you'll need to define the blinking behavior in the code).
-* **Dynamic Configuration:** When new non-volatile parameters are received via MQTT, the system updates its stored values and immediately adjusts its behavior if necessary.
-* **Event-Driven Architecture:** Employs an event-based approach using `asyncio` and `mqtt_as`, avoiding the complexities of traditional callback functions.
+* **Automatic mode**: Relay toggles when temperature exceeds the setpoint.
+* **Manual mode**: Relay toggled via MQTT command.
+* **Periodic telemetry**: Publishes JSON (temperatura, humedad, setpoint, periodo, modo) at a configurable interval.
+* **Remote configuration**: Subscribe to topics:
 
-## Hardware Components
+  * `<DEVICE_ID>/setpoint`
+  * `<DEVICE_ID>/periodo`
+  * `<DEVICE_ID>/modo`
+  * `<DEVICE_ID>/rele` (manual relay control)
+  * `<DEVICE_ID>/destello` (LED blink)
+* **Non‑volatile storage**: setpoint, period, mode, relay state stored in `params.json` on flash.
+* **Secure MQTT**: TLS using a provided certificate.
 
-* Raspberry Pi Pico W
-* DHT11 Temperature and Humidity Sensor
-* Relay module (compatible with Raspberry Pi Pico W voltage levels)
-* (Optional) LED for visual feedback
+## Technologies
 
-## Software
+* **MicroPython** on Raspberry Pi Pico 2 W
+* **asyncio** event loop
+* **mqtt\_as** library (by: Peter Hinch)
+* **DHT11** temperature/humidity sensor
+* **Relay module** (5 V coil)
+* **uJSON** for JSON handling
 
-* MicroPython firmware installed on the Raspberry Pi Pico W.
-* Required MicroPython libraries:
-    * `umqtt.simple` (or `mqtt_as`)
-    * `dht` (or a similar library for DHT11)
-    * `machine`
-    * `asyncio`
-    * `btree`
-    * `json`
-    * `time`
-* MQTT broker with TLS/SSL enabled for secure communication.
+## Repository Structure
 
-## Setup and Usage
+```
+/main.py           # Application entry point
+/settings.py       # Wi‑Fi and broker credentials
+/README.md         # This documentation
+```
 
-1.  **Hardware Connections:** Connect the DHT11 sensor and the relay module to the appropriate GPIO pins on the Raspberry Pi Pico W. Refer to the code for the specific pin assignments.
-2.  **Install MicroPython Libraries:** Ensure the necessary libraries (`umqtt.simple` or `mqtt_as`, `dht`, `btree`) are installed on your Raspberry Pi Pico W. You might need to use `upip` for this.
-3.  **Configure MQTT Broker:** Set up an MQTT broker that supports TLS/SSL. Note down the broker address, port, and any required credentials.
-4.  **Configure `config.py` (or similar):** Create a configuration file (e.g., `config.py`) to store your Wi-Fi credentials, MQTT broker details, and the `DEVICE_ID`.
-5.  **Upload Code:** Upload the MicroPython code (`main.py` and any other necessary files) to your Raspberry Pi Pico W.
-6.  **Run the Script:** The `main.py` script will automatically connect to your Wi-Fi network and the MQTT broker upon startup.
-7.  **Control via MQTT:** Use an MQTT client to subscribe to the relevant topics and publish commands to control the thermostat:
-    * Publish to `DEVICE_ID/setpoint` with a numeric value (e.g., `25`) to set the target temperature.
-    * Publish to `DEVICE_ID/periodo` with an integer value (in seconds) to change the data publishing interval.
-    * Publish `"blink"` to `DEVICE_ID/destello` to trigger the blink.
-    * Publish `"auto"` or `"manual"` to `DEVICE_ID/modo` to switch control modes.
-    * In manual mode, publish `"on"` or `"off"` to `DEVICE_ID/relé` to control the relay.
+## Hardware Wiring
 
-## Code Structure
+| Component    | Pico 2 W Pin | Comments              |
+| ------------ | ------------ | --------------------- |
+| DHT11 Data   | GP16         | Use pull‑up if needed |
+| Relay IN     | GP15         | Active‑high drive     |
+| On‑board LED | `LED`        | Status / blink        |
+| 3.3 V, GND   | 3V3, GND     | Power rails           |
 
-The main script (`main.py`) will likely contain the following sections:
+> **Note:** Ensure your relay module is 5 V‑compatible.
 
-* **Import Statements:** Imports necessary libraries.
-* **Configuration:** Reads Wi-Fi and MQTT settings from a configuration file.
-* **Hardware Initialization:** Initializes the DHT11 sensor and the relay pin.
-* **Non-Volatile Storage:** Initializes and loads persistent data using the `btree` module.
-* **MQTT Connection and Event Handlers:** Establishes the MQTT connection and defines asynchronous event handlers for subscribed topics.
-* **Data Publishing Task:** An asynchronous task that periodically reads sensor data and publishes it to the MQTT broker.
-* **Thermostat Logic:** Implements the automatic and manual control logic for the relay.
-* **Blink Functionality:** Implements the visual blink when the "destello" command is received.
-* **Main Asynchronous Loop:** Starts the asynchronous tasks.
+## Setup & Deployment
 
-## Git Repository
+1. **Prepare files**
 
-The complete code for this project can be found in the following Git repository:
+   * Copy `main.py`, `settings.py`, `cert.pem` into the Pico's flash (main.py and settings.py can be uploaded using the MicroPico extension in Visual Studio Code, and the cert.pem file is usually already present on the board).
+2. **Configure credentials** in `settings.py`:
 
-\[Your Git Repository URL Here]
+   ```python
+   SSID = "your_wifi_ssid"
+   password = "your_wifi_password"
+   BROKER = "mqtt.example.com"
+   ```
+3. **Upload CA certificate** as `/flash/cert.pem` (if not present on your board).
+4. **Run**: Reset Pico; `main.py` starts automatically.
+5. **Monitor**: Use `rshell` or serial REPL to view debug logs.
 
-Feel free to explore the code and adapt it to your specific needs.
+## MQTT Topics
+
+Replace `<DEVICE_ID>` with the hex‑ID printed on startup.
+
+* **Telemetry publish**: `<DEVICE_ID>`
+* **Setpoint**: `<DEVICE_ID>/setpoint` (float)
+* **Period**: `<DEVICE_ID>/periodo` (int seconds)
+* **Mode**: `<DEVICE_ID>/modo` (0=auto, 1=manual)
+* **Relay**: `<DEVICE_ID>/rele` (0=off, 1=on)
+* **Blink LED**: `<DEVICE_ID>/destello`
+
+## Customization
+
+* Default parameters in `default_params` of `main.py`.
+* Change sensor pin or relay pin in code as needed.
+* To adapt non‑volatile storage, modify `PARAMS_FILE` or integrate a different storage module.
+
+## Troubleshooting
+
+* **No Wi‑Fi**: Check SSID/password, verify `cert.pem` matches broker CA.
+* **Sensor errors**: Ensure correct wiring and adequate pull‑up resistor on DHT data line.
+* **Relay chatter**: Confirm relay coil voltage compatibility.
+
+## License
+
+MIT License

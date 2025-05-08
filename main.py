@@ -1,3 +1,6 @@
+# Author: Ramiro Uffelmann
+# Note: Given that "btree" is unavailable, a JSON file is used to store parameters.
+# Nota: La consigna de la actividad solicita suscribirse a tópico "relé", pero el uso de tildes ocasiona desconexión de red de la placa, por lo que se optó por usar "rele".
 from mqtt_as import MQTTClient, config
 import machine, dht
 from machine import Pin
@@ -8,7 +11,7 @@ import ujson
 config["ssid"] = SSID
 config["wifi_pw"] = password
 config["server"] = BROKER
-
+# config["ssl_params"] = {"server_hostname": BROKER, "certfile": "/flash/cert.pem"}
 
 # Parameters file -----
 PARAMS_FILE = "params.json"
@@ -63,11 +66,11 @@ async def measure_sensor():
 async def publish():
     while True:
         payload = {
-            "temperature": measure["temperature"],
-            "humidity": measure["humidity"],
+            "temperatura": measure["temperature"],
+            "humedad": measure["humidity"],
             "setpoint": params["setpoint"],
-            "period": params["period"],
-            "mode": params["mode"],
+            "periodo": params["period"],
+            "modo": params["mode"],
         }
         payload_str = ujson.dumps(payload)
         print("Publishing: ", payload_str)
@@ -115,7 +118,7 @@ async def messages(client):  # Respond to incoming messages
         elif topic == f"{device_id}/modo":
             try:
                 if int(payload) in [0, 1]:
-                    params["mode"] = payload
+                    params["mode"] = int(payload)
                     save_params(params)
                     print("Mode updated:", params["mode"])
                 else:
@@ -127,7 +130,7 @@ async def messages(client):  # Respond to incoming messages
             try:
                 relay_val = int(payload)
                 print(params["mode"])
-                if int(params["mode"]) == 1:  # Check if it's in manual
+                if params["mode"] == 1:  # Check if it's in manual
                     relay.value(relay_val)
                     params["relay"] = relay_val
                     save_params(params)
@@ -156,6 +159,18 @@ async def blink():
     await asyncio.sleep(0.2)
 
 
+# Handle automatic relay control
+async def relay_control():
+    while True:
+        if params["mode"] == 0:  # Automatic mode
+            print("measure: ", measure)
+            if measure["temperature"] > params["setpoint"]:
+                relay.value(1)  # Turn on relay
+            else:
+                relay.value(0)  # Turn off relay
+        await asyncio.sleep(1)
+
+
 async def main(client):
     print("Device ID: ", device_id)
     await client.connect(quick=True)
@@ -163,6 +178,7 @@ async def main(client):
     asyncio.create_task(publish())
     asyncio.create_task(up(client))
     asyncio.create_task(messages(client))
+    asyncio.create_task(relay_control())
     while True:
         await asyncio.sleep(1)
 
@@ -174,5 +190,7 @@ try:
     asyncio.run(main(client))
 except KeyboardInterrupt:
     print("Received Ctrl+C, shutting down...")
+    # Turn off relay
+    relay.value(0)
 finally:
     client.close()  # Prevent LmacRxBlk:1 errors
