@@ -5,12 +5,16 @@ from mqtt_as import MQTTClient, config
 import machine, dht
 from machine import Pin
 import asyncio
-from settings import SSID, password, BROKER
+from settings import SSID, password, BROKER, PUERTO_MQTTS, MQTT_USR, MQTT_PASS
 import ujson
 
 config["ssid"] = SSID
 config["wifi_pw"] = password
 config["server"] = BROKER
+config["port"] = PUERTO_MQTTS
+config["user"] = MQTT_USR
+config["password"] = MQTT_PASS
+config["ssl"] = True  # Enable SSL/TLS
 # config["ssl_params"] = {"server_hostname": BROKER, "certfile": "/flash/cert.pem"}
 
 # Parameters file -----
